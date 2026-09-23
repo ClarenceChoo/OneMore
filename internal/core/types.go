@@ -9,25 +9,26 @@ type User struct {
 }
 
 type Plan struct {
-	ID             string     `json:"id"`
-	HostID         string     `json:"hostId"`
-	HostName       string     `json:"hostName"`
-	Title          string     `json:"title"`
-	Description    string     `json:"description"`
-	Category       string     `json:"category"`
-	Tags           []string   `json:"tags"`
-	Area           string     `json:"area"`
-	Location       string     `json:"location"`
-	StartsAt       time.Time  `json:"startsAt"`
-	JoinDeadline   time.Time  `json:"joinDeadline"`
-	Spaces         int        `json:"spaces"`
-	Confirmed      int        `json:"confirmed"`
-	Reserved       int        `json:"reserved"`
-	Waiting        int        `json:"waiting"`
-	Available      int        `json:"available"`
-	Status         string     `json:"status"`
-	MyStatus       string     `json:"myStatus"`
-	OfferExpiresAt *time.Time `json:"offerExpiresAt,omitempty"`
+	ID                   string     `json:"id"`
+	HostID               string     `json:"hostId"`
+	HostName             string     `json:"hostName"`
+	Title                string     `json:"title"`
+	Description          string     `json:"description"`
+	Category             string     `json:"category"`
+	Tags                 []string   `json:"tags"`
+	Area                 string     `json:"area"`
+	Location             string     `json:"location"`
+	StartsAt             time.Time  `json:"startsAt"`
+	JoinDeadline         time.Time  `json:"joinDeadline"`
+	Spaces               int        `json:"spaces"`
+	Confirmed            int        `json:"confirmed"`
+	Reserved             int        `json:"reserved"`
+	Waiting              int        `json:"waiting"`
+	Available            int        `json:"available"`
+	Status               string     `json:"status"`
+	MyStatus             string     `json:"myStatus"`
+	OfferExpiresAt       *time.Time `json:"offerExpiresAt,omitempty"`
+	RecommendationReason string     `json:"recommendationReason,omitempty"`
 }
 
 type CreatePlan struct {

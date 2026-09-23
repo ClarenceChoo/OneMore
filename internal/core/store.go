@@ -136,29 +136,11 @@ func (s *Store) ListPlans(ctx context.Context, userID string, f FeedFilter) (Fee
 				out.Plans = append(out.Plans, p)
 			}
 		} else {
-			rows, err := s.DB.Query(ctx, planSelect+`WHERE i.id = ANY($2::uuid[])`, userID, ids)
+			plans, err := s.plansByIDs(ctx, userID, ids)
 			if err != nil {
 				return out, err
 			}
-			byID := make(map[string]Plan, len(ids))
-			for rows.Next() {
-				p, err := scanPlan(rows)
-				if err != nil {
-					rows.Close()
-					return out, err
-				}
-				byID[p.ID] = p
-			}
-			err = rows.Err()
-			rows.Close()
-			if err != nil {
-				return out, err
-			}
-			for _, id := range ids {
-				if p, ok := byID[id]; ok {
-					out.Plans = append(out.Plans, p)
-				}
-			}
+			out.Plans = plans
 		}
 	}
 	if len(out.Plans) > 24 {
@@ -168,6 +150,37 @@ func (s *Store) ListPlans(ctx context.Context, userID string, f FeedFilter) (Fee
 		out.NextCursor = base64.RawURLEncoding.EncodeToString(raw)
 	}
 	return out, nil
+}
+
+func (s *Store) plansByIDs(ctx context.Context, userID string, ids []string) ([]Plan, error) {
+	if len(ids) == 0 {
+		return []Plan{}, nil
+	}
+	rows, err := s.DB.Query(ctx, planSelect+`WHERE i.id = ANY($2::uuid[])`, userID, ids)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]Plan, len(ids))
+	for rows.Next() {
+		p, err := scanPlan(rows)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		byID[p.ID] = p
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	plans := make([]Plan, 0, len(ids))
+	for _, id := range ids {
+		if p, ok := byID[id]; ok {
+			plans = append(plans, p)
+		}
+	}
+	return plans, nil
 }
 func nullableTime(t time.Time) any {
 	if t.IsZero() {

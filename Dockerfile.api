@@ -9,7 +9,6 @@ FROM alpine:3.22
 WORKDIR /app
 RUN adduser -D -u 10001 app
 COPY --from=build /onemore /onemore
-COPY db/schema.sql db/schema.sql
 USER app
 EXPOSE 8080
 CMD ["/onemore"]

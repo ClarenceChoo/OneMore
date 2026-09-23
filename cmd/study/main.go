@@ -80,13 +80,10 @@ func summarize(samples []sample, seconds float64) metrics {
 }
 
 func seed(ctx context.Context, db *pgxpool.Pool, plans int) error {
-	schema, err := os.ReadFile("db/schema.sql")
-	if err != nil {
+	if err := core.ApplyMigrations(ctx, db); err != nil {
 		return err
 	}
-	if _, err = db.Exec(ctx, string(schema)); err != nil {
-		return err
-	}
+	var err error
 	if _, err = db.Exec(ctx, `TRUNCATE idempotency_records,outbox_events,notifications,offers,memberships,invitations,sessions,users RESTART IDENTITY CASCADE`); err != nil {
 		return err
 	}

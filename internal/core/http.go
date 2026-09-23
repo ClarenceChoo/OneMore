@@ -78,6 +78,10 @@ func (a *API) Router() http.Handler {
 	mux.HandleFunc("POST /auth/logout", a.Auth.Logout)
 	mux.HandleFunc("GET /api/me", a.handler(func(w http.ResponseWriter, r *http.Request, u User) error { jsonResponse(w, 200, u); return nil }))
 	mux.HandleFunc("GET /api/plans", a.handler(a.list))
+	mux.HandleFunc("GET /api/recommendations", a.handler(a.recommendations))
+	mux.HandleFunc("GET /api/preferences", a.handler(a.preferences))
+	mux.HandleFunc("POST /api/preferences", a.handler(a.savePreferences))
+	mux.HandleFunc("POST /api/discovery/events", a.handler(a.discoveryEvents))
 	mux.HandleFunc("POST /api/plans", a.handler(a.create))
 	mux.HandleFunc("GET /api/plans/{id}", a.handler(a.detail))
 	mux.HandleFunc("GET /api/my-plans", a.handler(a.mine))
@@ -130,6 +134,47 @@ func (a *API) list(w http.ResponseWriter, r *http.Request, u User) error {
 		return err
 	}
 	jsonResponse(w, 200, page)
+	return nil
+}
+func (a *API) recommendations(w http.ResponseWriter, r *http.Request, u User) error {
+	page, err := a.Store.Recommendations(r.Context(), u.ID)
+	if err != nil {
+		return err
+	}
+	jsonResponse(w, http.StatusOK, page)
+	return nil
+}
+func (a *API) preferences(w http.ResponseWriter, r *http.Request, u User) error {
+	p, err := a.Store.GetPreferences(r.Context(), u.ID)
+	if err != nil {
+		return err
+	}
+	jsonResponse(w, http.StatusOK, p)
+	return nil
+}
+func (a *API) savePreferences(w http.ResponseWriter, r *http.Request, u User) error {
+	var p DiscoveryPreferences
+	if err := decode(r, &p); err != nil {
+		return err
+	}
+	saved, err := a.Store.SavePreferences(r.Context(), u.ID, p)
+	if err != nil {
+		return err
+	}
+	jsonResponse(w, http.StatusOK, saved)
+	return nil
+}
+func (a *API) discoveryEvents(w http.ResponseWriter, r *http.Request, u User) error {
+	var in struct {
+		Events []DiscoveryEventInput `json:"events"`
+	}
+	if err := decode(r, &in); err != nil {
+		return err
+	}
+	if err := a.Store.RecordDiscoveryEvents(r.Context(), u.ID, in.Events); err != nil {
+		return err
+	}
+	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
 func (a *API) create(w http.ResponseWriter, r *http.Request, u User) error {

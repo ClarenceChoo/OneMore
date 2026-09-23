@@ -165,6 +165,9 @@ func (s *Store) Join(ctx context.Context, userID, id string) (Plan, error) {
 		if err != nil {
 			return err
 		}
+		if err = recordJoinEvent(ctx, tx, userID, id); err != nil {
+			return err
+		}
 		return addEvent(ctx, tx, "member_joined", id, userID, "")
 	})
 }

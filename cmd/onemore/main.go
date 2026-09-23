@@ -51,11 +51,7 @@ func main() {
 	}
 	defer db.Close()
 	if *mode == "api" {
-		schema, err := os.ReadFile("db/schema.sql")
-		if err != nil {
-			log.Fatal(err)
-		}
-		if _, err = db.Exec(ctx, string(schema)); err != nil {
+		if err = core.ApplyMigrations(ctx, db); err != nil {
 			log.Fatal(err)
 		}
 		// Older fixed-profile sessions should not bypass the new sign-in screen.

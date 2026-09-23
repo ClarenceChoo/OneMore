@@ -31,11 +31,7 @@ func testStore(t *testing.T) *Store {
 	if !strings.HasSuffix(name, "_test") {
 		t.Fatal("integration tests require a database name ending in _test")
 	}
-	schema, err := os.ReadFile("../../db/schema.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec(ctx, string(schema)); err != nil {
+	if err = ApplyMigrations(ctx, db); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = db.Exec(ctx, `TRUNCATE idempotency_records,outbox_events,notifications,offers,memberships,invitations,sessions,users RESTART IDENTITY CASCADE`); err != nil {
@@ -289,6 +285,57 @@ func TestBatchedFeedPreservesOrderPaginationAndMembership(t *testing.T) {
 		if p.ID != ids[i+24] {
 			t.Fatalf("second page order at %d: %s", i, p.ID)
 		}
+	}
+}
+
+func TestDiscoveryPreferencesRankingAndEvents(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	host, viewer := testUser(t, s), testUser(t, s)
+	location, err := time.LoadLocation("Asia/Singapore")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().In(location)
+	daysUntilSaturday := (int(time.Saturday) - int(now.Weekday()) + 7) % 7
+	if daysUntilSaturday == 0 {
+		daysUntilSaturday = 7
+	}
+	weekend := time.Date(now.Year(), now.Month(), now.Day()+daysUntilSaturday, 15, 0, 0, 0, location)
+	foodID, badmintonID := NewID(), NewID()
+	for _, item := range []struct {
+		id, category, area string
+		start              time.Time
+	}{{foodID, "Food", "East", time.Now().Add(2 * time.Hour)}, {badmintonID, "Badminton", "Central", weekend}} {
+		_, err := s.DB.Exec(ctx, `INSERT INTO invitations(id,host_id,title,category,area,location,starts_at,join_deadline,spaces) VALUES($1,$2,'Community activity',$3,$4,'Meeting point',$5,$6,2)`, item.id, host, item.category, item.area, item.start, item.start.Add(-time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	prefs := DiscoveryPreferences{Categories: []string{"Badminton"}, Area: "Central", Availability: "weekends", Timezone: "Asia/Singapore"}
+	if _, err = s.SavePreferences(ctx, viewer, prefs); err != nil {
+		t.Fatal(err)
+	}
+	page, err := s.Recommendations(ctx, viewer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Plans) != 2 || page.Plans[0].ID != badmintonID || !strings.Contains(page.Plans[0].RecommendationReason, "Badminton") {
+		t.Fatalf("unexpected recommendation order or explanation: %+v", page)
+	}
+	events := []DiscoveryEventInput{{PlanID: foodID, Kind: "impression", Source: "for_you"}, {PlanID: foodID, Kind: "click", Source: "for_you"}}
+	if err = s.RecordDiscoveryEvents(ctx, viewer, events); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Join(ctx, viewer, badmintonID); err != nil {
+		t.Fatal(err)
+	}
+	var joins int
+	if err = s.DB.QueryRow(ctx, `SELECT count(*) FROM discovery_events WHERE user_id=$1 AND invitation_id=$2 AND kind='join'`, viewer, badmintonID).Scan(&joins); err != nil || joins != 1 {
+		t.Fatalf("join event missing: count=%d err=%v", joins, err)
+	}
+	if _, err = s.SavePreferences(ctx, viewer, DiscoveryPreferences{Timezone: "not/a_timezone", Availability: "any"}); err == nil {
+		t.Fatal("invalid time zone was accepted")
 	}
 }
 
