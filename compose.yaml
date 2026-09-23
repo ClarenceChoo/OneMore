@@ -28,7 +28,8 @@ services:
       context: .
       dockerfile: Dockerfile.api
     environment:
-      DATABASE_URL: postgres://onemore:${POSTGRES_PASSWORD:-onemore_local}@postgres:5432/onemore?sslmode=disable
+      DATABASE_URL: postgres://onemore@postgres:5432/onemore?sslmode=disable
+      PGPASSWORD: ${POSTGRES_PASSWORD:-onemore_local}
       REDIS_URL: redis://redis:6379
       DEV_AUTH: ${DEV_AUTH:-true}
       OIDC_ISSUER: ${OIDC_ISSUER:-}
@@ -53,7 +54,8 @@ services:
       dockerfile: Dockerfile.api
     command: ["/onemore", "-mode=worker"]
     environment:
-      DATABASE_URL: postgres://onemore:${POSTGRES_PASSWORD:-onemore_local}@postgres:5432/onemore?sslmode=disable
+      DATABASE_URL: postgres://onemore@postgres:5432/onemore?sslmode=disable
+      PGPASSWORD: ${POSTGRES_PASSWORD:-onemore_local}
       REDIS_URL: redis://redis:6379
     depends_on:
       api: {condition: service_healthy}
