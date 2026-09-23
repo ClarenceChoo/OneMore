@@ -62,7 +62,7 @@ These screenshots were captured from the running local app using fictional profi
 
 ### Watch the product flow
 
-[![Play the 20-second OneMore product tour](docs/media/brag.jpg)](docs/media/brag.mp4)
+[![Watch the OneMore product tour on YouTube](docs/media/brag.jpg)](https://youtu.be/c18erTIz6tQ)
 
 The clip follows discovery, a join action, and a reserved waitlist offer.
 
