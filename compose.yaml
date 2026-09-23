@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: onemore
+      POSTGRES_USER: onemore
+      POSTGRES_PASSWORD: onemore_local
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onemore"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      DATABASE_URL: postgres://onemore:onemore_local@postgres:5432/onemore?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      DEV_AUTH: ${DEV_AUTH:-true}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: ["/onemore", "-mode=worker"]
+    environment:
+      DATABASE_URL: postgres://onemore:onemore_local@postgres:5432/onemore?sslmode=disable
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+  web:
+    build:
+      context: ./web
+    ports:
+      - "3000:80"
+    depends_on: [api]
+volumes:
+  postgres_data:
