@@ -77,6 +77,8 @@ go run ./cmd/load -url http://127.0.0.1:3000/api/plans -workers 20 -duration 30s
 
 The tool reports request count, errors, throughput, and p50/p95 latency. Record hardware, dataset size, and request mix when sharing results. Synthetic requests are not user activity.
 
+The [local baseline](docs/benchmark.md) records one measured run and its limits.
+
 ## Deploy on Linux
 
 Use a host with Docker Compose and a domain pointing to it. Create `.env` from `.env.example`, set a strong `POSTGRES_PASSWORD`, `DOMAIN`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and `OIDC_REDIRECT_URL` to `https://YOUR_DOMAIN/auth/callback`. Then run:

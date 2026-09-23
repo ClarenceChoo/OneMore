@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -14,6 +16,7 @@ import (
 type result struct {
 	Duration time.Duration
 	Failed   bool
+	Status   string
 }
 
 func main() {
@@ -48,11 +51,18 @@ func main() {
 				req.AddCookie(&http.Cookie{Name: "onemore_session", Value: cookie})
 				t := time.Now()
 				response, err := client.Do(req)
-				r := result{Duration: time.Since(t), Failed: err != nil}
+				r := result{Failed: err != nil, Status: "transport"}
 				if err == nil {
 					r.Failed = response.StatusCode != 200
+					r.Status = strconv.Itoa(response.StatusCode)
+					_, copyErr := io.Copy(io.Discard, response.Body)
 					_ = response.Body.Close()
+					if copyErr != nil {
+						r.Failed = true
+						r.Status = "body_read"
+					}
 				}
+				r.Duration = time.Since(t)
 				out <- r
 			}
 		}()
@@ -61,8 +71,10 @@ func main() {
 	times := []float64{}
 	failed := 0
 	total := 0
+	byStatus := map[string]int{}
 	for r := range out {
 		total++
+		byStatus[r.Status]++
 		if r.Failed {
 			failed++
 		} else {
@@ -78,6 +90,6 @@ func main() {
 		i := int(float64(len(times)-1) * p)
 		return times[i]
 	}
-	report := map[string]any{"endpoint": *endpoint, "workers": *workers, "durationSeconds": elapsed, "requests": total, "errors": failed, "requestsPerSecond": float64(total) / elapsed, "p50Ms": percentile(.50), "p95Ms": percentile(.95)}
+	report := map[string]any{"endpoint": *endpoint, "workers": *workers, "durationSeconds": elapsed, "requests": total, "errors": failed, "statusCounts": byStatus, "requestsPerSecond": float64(total) / elapsed, "p50Ms": percentile(.50), "p95Ms": percentile(.95)}
 	_ = json.NewEncoder(os.Stdout).Encode(report)
 }
