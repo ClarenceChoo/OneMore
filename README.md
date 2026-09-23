@@ -145,6 +145,5 @@ The production overlay puts Caddy in front for HTTPS, uses secure session cookie
 | [Discovery](docs/discovery.md) | Rule-based ranking, signals, and evaluation approach |
 | [Performance study](docs/benchmark.md) | Workload, before/after results, raw data, and caveats |
 | [Operations](docs/operations.md) | Dashboard, migrations, and recovery exercise |
-| [Implementation plan](docs/implementation-plan.md) | Build sequence and decisions |
 
 **Current scope:** plans, memberships, waitlists, expiring offers, notifications, and explainable discovery. Direct messages, payments, uploaded media, and public profiles are outside this release.
