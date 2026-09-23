@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, CalendarDays, MapPin, UsersRound } from 'lucide-react'
 import { type Plan, post } from '../api'
 
@@ -16,10 +16,11 @@ export function NewPlan({ navigate }: { navigate: (to: string) => void }) {
   const [tags, setTags] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const requestKey = useRef(crypto.randomUUID())
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setError(''); setBusy(true)
     try {
-      const plan = await post<Plan>('/api/plans', { title, description, category, area, location, startsAt: new Date(startsAt).toISOString(), joinDeadline: new Date(deadline).toISOString(), spaces, tags: tags.split(',').map(t => t.trim()).filter(Boolean) }, { 'Idempotency-Key': crypto.randomUUID() })
+      const plan = await post<Plan>('/api/plans', { title, description, category, area, location, startsAt: new Date(startsAt).toISOString(), joinDeadline: new Date(deadline).toISOString(), spaces, tags: tags.split(',').map(t => t.trim()).filter(Boolean) }, { 'Idempotency-Key': requestKey.current })
       navigate(`/plans/${plan.id}`)
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
   }

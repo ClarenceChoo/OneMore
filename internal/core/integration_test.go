@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 func testStore(t *testing.T) *Store {
@@ -180,5 +181,94 @@ func TestHostCancellationInvalidatesOffers(t *testing.T) {
 	}
 	if p.Status != "cancelled" {
 		t.Fatal("plan not cancelled")
+	}
+}
+
+func TestIdempotentCreationAndPersonalizedFeed(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	host, member := testUser(t, s), testUser(t, s)
+	in := CreatePlan{Title: "Study session", Category: "Study", Area: "Library", Location: "Room 2", StartsAt: time.Now().Add(3 * time.Hour), JoinDeadline: time.Now().Add(2 * time.Hour), Spaces: 1}
+	var wg sync.WaitGroup
+	results := make(chan Plan, 2)
+	errs := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); p, err := s.Create(ctx, host, "same-request", in); results <- p; errs <- err }()
+	}
+	wg.Wait()
+	close(results)
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var id string
+	for p := range results {
+		if id != "" && id != p.ID {
+			t.Fatalf("same request created two plans: %s and %s", id, p.ID)
+		}
+		id = p.ID
+	}
+	if _, err := s.Join(ctx, member, id); err != nil {
+		t.Fatal(err)
+	}
+	if raw := os.Getenv("TEST_REDIS_URL"); raw != "" {
+		opt, err := redis.ParseURL(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.Redis = redis.NewClient(opt)
+		defer s.Redis.Close()
+	}
+	hostFeed, err := s.ListPlans(ctx, host, FeedFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	memberFeed, err := s.ListPlans(ctx, member, FeedFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hostFeed.Plans) != 1 || len(memberFeed.Plans) != 1 || hostFeed.Plans[0].MyStatus != "host" || memberFeed.Plans[0].MyStatus != "confirmed" {
+		t.Fatalf("cached feed leaked or lost membership: host=%+v member=%+v", hostFeed, memberFeed)
+	}
+}
+
+func TestOutboxRecoveryAndNotificationDeduplication(t *testing.T) {
+	raw := os.Getenv("TEST_REDIS_URL")
+	if raw == "" {
+		t.Skip("set TEST_REDIS_URL to run outbox recovery test")
+	}
+	s := testStore(t)
+	ctx := context.Background()
+	host, a, b := testUser(t, s), testUser(t, s), testUser(t, s)
+	plan := testPlan(t, s, host, 1)
+	_, _ = s.Join(ctx, a, plan.ID)
+	_, _ = s.Join(ctx, b, plan.ID)
+	_, _ = s.Leave(ctx, a, plan.ID)
+	s.Redis = redis.NewClient(&redis.Options{Addr: "127.0.0.1:1", DialTimeout: 100 * time.Millisecond, MaxRetries: 0})
+	if err := s.DeliverOutbox(ctx); err == nil {
+		t.Fatal("delivery should fail while Redis is unavailable")
+	}
+	_ = s.Redis.Close()
+	opt, err := redis.ParseURL(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Redis = redis.NewClient(opt)
+	defer s.Redis.Close()
+	if err := s.DeliverOutbox(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeliverOutbox(ctx); err != nil {
+		t.Fatal(err)
+	}
+	items, err := s.Notifications(ctx, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || !strings.Contains(items[0].Message, "space is open") {
+		t.Fatalf("expected exactly one recovered offer notification, got %+v", items)
 	}
 }

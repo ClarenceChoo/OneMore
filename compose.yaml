@@ -4,9 +4,9 @@ services:
     environment:
       POSTGRES_DB: onemore
       POSTGRES_USER: onemore
-      POSTGRES_PASSWORD: onemore_local
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-onemore_local}
     ports:
-      - "55432:5432"
+      - "127.0.0.1:55432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,7 +17,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 2s
@@ -28,7 +28,7 @@ services:
       context: .
       dockerfile: Dockerfile.api
     environment:
-      DATABASE_URL: postgres://onemore:onemore_local@postgres:5432/onemore?sslmode=disable
+      DATABASE_URL: postgres://onemore:${POSTGRES_PASSWORD:-onemore_local}@postgres:5432/onemore?sslmode=disable
       REDIS_URL: redis://redis:6379
       DEV_AUTH: ${DEV_AUTH:-true}
       OIDC_ISSUER: ${OIDC_ISSUER:-}
@@ -37,26 +37,34 @@ services:
       OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 15
+    restart: unless-stopped
   worker:
     build:
       context: .
       dockerfile: Dockerfile.api
     command: ["/onemore", "-mode=worker"]
     environment:
-      DATABASE_URL: postgres://onemore:onemore_local@postgres:5432/onemore?sslmode=disable
+      DATABASE_URL: postgres://onemore:${POSTGRES_PASSWORD:-onemore_local}@postgres:5432/onemore?sslmode=disable
       REDIS_URL: redis://redis:6379
     depends_on:
-      postgres: {condition: service_healthy}
-      redis: {condition: service_healthy}
+      api: {condition: service_healthy}
+    restart: unless-stopped
   web:
     build:
       context: ./web
     ports:
-      - "3000:80"
-    depends_on: [api]
+      - "127.0.0.1:3000:80"
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
 volumes:
   postgres_data:

@@ -3,7 +3,9 @@ package core
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,29 +78,58 @@ func (s *Store) ListPlans(ctx context.Context, userID string, f FeedFilter) (Fee
 	c := cursor{}
 	if f.Cursor != "" {
 		raw, err := base64.RawURLEncoding.DecodeString(f.Cursor)
-		if err != nil || json.Unmarshal(raw, &c) != nil || c.ID == "" {
+		if err != nil || json.Unmarshal(raw, &c) != nil || !uuidPattern.MatchString(c.ID) {
 			return out, Bad("invalid_cursor", "The feed cursor is invalid.")
 		}
 	}
+	cacheData, _ := json.Marshal(f)
+	cacheHash := sha256.Sum256(cacheData)
+	cacheKey := "onemore:feed:" + hex.EncodeToString(cacheHash[:])
 	if f.Before.IsZero() {
 		f.Before = time.Now().UTC().Add(30 * 24 * time.Hour)
 	}
-	rows, err := s.DB.Query(ctx, planSelect+`WHERE i.status='active' AND i.starts_at>now() AND i.starts_at<=$2 AND ($3='' OR i.category=$3) AND ($4='' OR i.area=$4)
- AND (NOT $5 OR i.spaces>(SELECT count(*) FROM memberships m WHERE m.invitation_id=i.id AND m.status='confirmed')+(SELECT count(*) FROM offers o JOIN memberships m ON m.id=o.membership_id WHERE m.invitation_id=i.id AND o.status='active' AND o.expires_at>now()))
- AND ($6::timestamptz IS NULL OR (i.starts_at,i.id)>($6::timestamptz,$7::uuid)) ORDER BY i.starts_at,i.id LIMIT 25`, userID, f.Before, f.Category, f.Area, f.OpenOnly, nullableTime(c.Time), nullableString(c.ID))
-	if err != nil {
-		return out, err
+	var ids []string
+	if s.Redis != nil {
+		cacheCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+		if raw, err := s.Redis.Get(cacheCtx, cacheKey).Bytes(); err == nil {
+			_ = json.Unmarshal(raw, &ids)
+		}
+		cancel()
 	}
-	defer rows.Close()
-	for rows.Next() {
-		p, err := scanPlan(rows)
+	if ids == nil {
+		ids = []string{}
+		rows, err := s.DB.Query(ctx, `SELECT i.id FROM invitations i WHERE i.status='active' AND i.starts_at>now() AND i.starts_at<=$1 AND ($2='' OR i.category=$2) AND ($3='' OR i.area=$3)
+ AND (NOT $4 OR i.spaces>(SELECT count(*) FROM memberships m WHERE m.invitation_id=i.id AND m.status='confirmed')+(SELECT count(*) FROM offers o JOIN memberships m ON m.id=o.membership_id WHERE m.invitation_id=i.id AND o.status='active' AND o.expires_at>now()))
+ AND ($5::timestamptz IS NULL OR (i.starts_at,i.id)>($5::timestamptz,$6::uuid)) ORDER BY i.starts_at,i.id LIMIT 25`, f.Before, f.Category, f.Area, f.OpenOnly, nullableTime(c.Time), nullableString(c.ID))
+		if err != nil {
+			return out, err
+		}
+		for rows.Next() {
+			var id string
+			if err = rows.Scan(&id); err != nil {
+				rows.Close()
+				return out, err
+			}
+			ids = append(ids, id)
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return out, err
+		}
+		if s.Redis != nil {
+			raw, _ := json.Marshal(ids)
+			cacheCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+			_ = s.Redis.Set(cacheCtx, cacheKey, raw, 5*time.Second).Err()
+			cancel()
+		}
+	}
+	for _, id := range ids {
+		p, err := s.GetPlan(ctx, userID, id)
 		if err != nil {
 			return out, err
 		}
 		out.Plans = append(out.Plans, p)
-	}
-	if err := rows.Err(); err != nil {
-		return out, err
 	}
 	if len(out.Plans) > 24 {
 		out.Plans = out.Plans[:24]
@@ -122,7 +153,7 @@ func nullableString(s string) any {
 }
 
 func (s *Store) MyPlans(ctx context.Context, userID string) ([]Plan, error) {
-	rows, err := s.DB.Query(ctx, planSelect+`WHERE i.host_id=$1::uuid OR EXISTS(SELECT 1 FROM memberships m WHERE m.invitation_id=i.id AND m.user_id=$1::uuid) ORDER BY i.starts_at DESC LIMIT 100`, userID)
+	rows, err := s.DB.Query(ctx, planSelect+`WHERE i.host_id=$1::uuid OR EXISTS(SELECT 1 FROM memberships m WHERE m.invitation_id=i.id AND m.user_id=$1::uuid AND m.status<>'left') ORDER BY i.starts_at DESC LIMIT 100`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -190,10 +221,15 @@ func (s *Store) Create(ctx context.Context, userID, key string, in CreatePlan) (
 	}
 	defer tx.Rollback(ctx)
 	if key != "" {
+		if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, userID+":"+key); err != nil {
+			return Plan{}, err
+		}
 		var existing string
 		err = tx.QueryRow(ctx, `SELECT invitation_id FROM idempotency_records WHERE user_id=$1 AND key=$2`, userID, key).Scan(&existing)
 		if err == nil {
-			tx.Commit(ctx)
+			if err = tx.Commit(ctx); err != nil {
+				return Plan{}, err
+			}
 			return s.GetPlan(ctx, userID, existing)
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {

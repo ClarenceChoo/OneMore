@@ -50,12 +50,14 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	schema, err := os.ReadFile("db/schema.sql")
-	if err != nil {
-		log.Fatal(err)
-	}
-	if _, err = db.Exec(ctx, string(schema)); err != nil {
-		log.Fatal(err)
+	if *mode == "api" {
+		schema, err := os.ReadFile("db/schema.sql")
+		if err != nil {
+			log.Fatal(err)
+		}
+		if _, err = db.Exec(ctx, string(schema)); err != nil {
+			log.Fatal(err)
+		}
 	}
 	var rdb *redis.Client
 	if raw := os.Getenv("REDIS_URL"); raw != "" {
