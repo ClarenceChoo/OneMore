@@ -7,3 +7,4 @@ coverage.out
 *.tsbuildinfo
 output/
 .playwright-cli/
+brag-output/

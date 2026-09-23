@@ -60,6 +60,12 @@ The main actions stay close to the plans: discover, create, track your plans, an
 
 These screenshots were captured from the running local app using fictional profiles and plans. The temporary records were removed afterward.
 
+### Watch the product flow
+
+[![Play the 20-second OneMore product tour](docs/media/brag.jpg)](docs/media/brag.mp4)
+
+The clip follows discovery, a join action, and a reserved waitlist offer.
+
 ## How a space moves
 
 1. A host creates a plan and sets the number of spaces **for other people**.
