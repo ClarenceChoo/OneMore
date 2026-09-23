@@ -1,0 +1,260 @@
+{
+  "durationPerScenario": "10s",
+  "memberships": 12000,
+  "plans": 3000,
+  "scenarios": [
+    {
+      "cache": false,
+      "dbQueries": 45733,
+      "dbQueriesPerRequest": 25.707138842046092,
+      "detailMode": "sequential",
+      "metrics": {
+        "byOperation": {
+          "browse": {
+            "errors": 0,
+            "p50Ms": 101.277,
+            "p95Ms": 183.034,
+            "p99Ms": 383.919,
+            "requests": 1299,
+            "requestsPerSecond": 128.89693745092808,
+            "statusCounts": {
+              "200": 1299
+            }
+          },
+          "filter": {
+            "errors": 0,
+            "p50Ms": 123.911,
+            "p95Ms": 211.293,
+            "p99Ms": 245.652,
+            "requests": 320,
+            "requestsPerSecond": 31.752902220397985,
+            "statusCounts": {
+              "200": 320
+            }
+          },
+          "join": {
+            "errors": 0,
+            "p50Ms": 60.629,
+            "p95Ms": 158.723,
+            "p99Ms": 181.201,
+            "requests": 80,
+            "requestsPerSecond": 7.938225555099496,
+            "statusCounts": {
+              "200": 80
+            }
+          },
+          "leave": {
+            "errors": 0,
+            "p50Ms": 47.116,
+            "p95Ms": 112.737,
+            "p99Ms": 123.839,
+            "requests": 80,
+            "requestsPerSecond": 7.938225555099496,
+            "statusCounts": {
+              "200": 80
+            }
+          }
+        },
+        "errors": 0,
+        "p50Ms": 102.164,
+        "p95Ms": 187.503,
+        "p99Ms": 364.069,
+        "requests": 1779,
+        "requestsPerSecond": 176.52629078152503,
+        "statusCounts": {
+          "200": 1779
+        }
+      }
+    },
+    {
+      "cache": true,
+      "dbQueries": 46468,
+      "dbQueriesPerRequest": 24.809396689802455,
+      "detailMode": "sequential",
+      "metrics": {
+        "byOperation": {
+          "browse": {
+            "errors": 0,
+            "p50Ms": 99.608,
+            "p95Ms": 193.168,
+            "p99Ms": 253.4,
+            "requests": 1393,
+            "requestsPerSecond": 137.93296989432855,
+            "statusCounts": {
+              "200": 1393
+            }
+          },
+          "filter": {
+            "errors": 0,
+            "p50Ms": 105.066,
+            "p95Ms": 169.025,
+            "p99Ms": 179.999,
+            "requests": 320,
+            "requestsPerSecond": 31.685965804870882,
+            "statusCounts": {
+              "200": 320
+            }
+          },
+          "join": {
+            "errors": 0,
+            "p50Ms": 46.976,
+            "p95Ms": 68.061,
+            "p99Ms": 86.187,
+            "requests": 80,
+            "requestsPerSecond": 7.921491451217721,
+            "statusCounts": {
+              "200": 80
+            }
+          },
+          "leave": {
+            "errors": 0,
+            "p50Ms": 48.076,
+            "p95Ms": 65.552,
+            "p99Ms": 70.285,
+            "requests": 80,
+            "requestsPerSecond": 7.921491451217721,
+            "statusCounts": {
+              "200": 80
+            }
+          }
+        },
+        "errors": 0,
+        "p50Ms": 98.128,
+        "p95Ms": 189.03,
+        "p99Ms": 235.737,
+        "requests": 1873,
+        "requestsPerSecond": 185.4619186016349,
+        "statusCounts": {
+          "200": 1873
+        }
+      }
+    },
+    {
+      "cache": false,
+      "dbQueries": 30237,
+      "dbQueriesPerRequest": 3.8770355173740225,
+      "detailMode": "batch",
+      "metrics": {
+        "byOperation": {
+          "browse": {
+            "errors": 0,
+            "p50Ms": 18.87,
+            "p95Ms": 44.668,
+            "p99Ms": 60.456,
+            "requests": 5518,
+            "requestsPerSecond": 550.6696839527891,
+            "statusCounts": {
+              "200": 5518
+            }
+          },
+          "filter": {
+            "errors": 0,
+            "p50Ms": 18.327,
+            "p95Ms": 47.261,
+            "p99Ms": 62.948,
+            "requests": 1521,
+            "requestsPerSecond": 151.78843589927368,
+            "statusCounts": {
+              "200": 1521
+            }
+          },
+          "join": {
+            "errors": 0,
+            "p50Ms": 58.487,
+            "p95Ms": 108.309,
+            "p99Ms": 129.537,
+            "requests": 380,
+            "requestsPerSecond": 37.92216018522288,
+            "statusCounts": {
+              "200": 380
+            }
+          },
+          "leave": {
+            "errors": 0,
+            "p50Ms": 59.924,
+            "p95Ms": 102.612,
+            "p99Ms": 122.041,
+            "requests": 380,
+            "requestsPerSecond": 37.92216018522288,
+            "statusCounts": {
+              "200": 380
+            }
+          }
+        },
+        "errors": 0,
+        "p50Ms": 19.842,
+        "p95Ms": 62.952,
+        "p99Ms": 95.636,
+        "requests": 7799,
+        "requestsPerSecond": 778.3024402225085,
+        "statusCounts": {
+          "200": 7799
+        }
+      }
+    },
+    {
+      "cache": true,
+      "dbQueries": 25282,
+      "dbQueriesPerRequest": 2.9901833234772326,
+      "detailMode": "batch",
+      "metrics": {
+        "byOperation": {
+          "browse": {
+            "errors": 0,
+            "p50Ms": 17.486,
+            "p95Ms": 41.777,
+            "p99Ms": 52.814,
+            "requests": 5939,
+            "requestsPerSecond": 590.5171095358937,
+            "statusCounts": {
+              "200": 5939
+            }
+          },
+          "filter": {
+            "errors": 0,
+            "p50Ms": 16.077,
+            "p95Ms": 38.872,
+            "p99Ms": 57.3,
+            "requests": 1680,
+            "requestsPerSecond": 167.0430617983333,
+            "statusCounts": {
+              "200": 1680
+            }
+          },
+          "join": {
+            "errors": 0,
+            "p50Ms": 53.138,
+            "p95Ms": 104.251,
+            "p99Ms": 152.542,
+            "requests": 419,
+            "requestsPerSecond": 41.66133505565574,
+            "statusCounts": {
+              "200": 419
+            }
+          },
+          "leave": {
+            "errors": 0,
+            "p50Ms": 52.049,
+            "p95Ms": 98.948,
+            "p99Ms": 114.41,
+            "requests": 417,
+            "requestsPerSecond": 41.46247426780059,
+            "statusCounts": {
+              "200": 417
+            }
+          }
+        },
+        "errors": 0,
+        "p50Ms": 18.274,
+        "p95Ms": 56.44,
+        "p99Ms": 83.153,
+        "requests": 8455,
+        "requestsPerSecond": 840.6839806576833,
+        "statusCounts": {
+          "200": 8455
+        }
+      }
+    }
+  ],
+  "workers": 20
+}

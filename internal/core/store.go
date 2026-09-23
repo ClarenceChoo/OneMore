@@ -18,8 +18,10 @@ import (
 )
 
 type Store struct {
-	DB    *pgxpool.Pool
-	Redis *redis.Client
+	DB                    *pgxpool.Pool
+	Redis                 *redis.Client
+	DisableFeedCache      bool
+	FeedDetailsSequential bool // Retained for controlled performance comparisons only.
 }
 
 func NewID() string {
@@ -89,7 +91,7 @@ func (s *Store) ListPlans(ctx context.Context, userID string, f FeedFilter) (Fee
 		f.Before = time.Now().UTC().Add(30 * 24 * time.Hour)
 	}
 	var ids []string
-	if s.Redis != nil {
+	if s.Redis != nil && !s.DisableFeedCache {
 		cacheCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 		if raw, err := s.Redis.Get(cacheCtx, cacheKey).Bytes(); err == nil {
 			_ = json.Unmarshal(raw, &ids)
@@ -117,19 +119,47 @@ func (s *Store) ListPlans(ctx context.Context, userID string, f FeedFilter) (Fee
 		if err != nil {
 			return out, err
 		}
-		if s.Redis != nil {
+		if s.Redis != nil && !s.DisableFeedCache {
 			raw, _ := json.Marshal(ids)
 			cacheCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 			_ = s.Redis.Set(cacheCtx, cacheKey, raw, 5*time.Second).Err()
 			cancel()
 		}
 	}
-	for _, id := range ids {
-		p, err := s.GetPlan(ctx, userID, id)
-		if err != nil {
-			return out, err
+	if len(ids) > 0 {
+		if s.FeedDetailsSequential {
+			for _, id := range ids {
+				p, err := s.GetPlan(ctx, userID, id)
+				if err != nil {
+					return out, err
+				}
+				out.Plans = append(out.Plans, p)
+			}
+		} else {
+			rows, err := s.DB.Query(ctx, planSelect+`WHERE i.id = ANY($2::uuid[])`, userID, ids)
+			if err != nil {
+				return out, err
+			}
+			byID := make(map[string]Plan, len(ids))
+			for rows.Next() {
+				p, err := scanPlan(rows)
+				if err != nil {
+					rows.Close()
+					return out, err
+				}
+				byID[p.ID] = p
+			}
+			err = rows.Err()
+			rows.Close()
+			if err != nil {
+				return out, err
+			}
+			for _, id := range ids {
+				if p, ok := byID[id]; ok {
+					out.Plans = append(out.Plans, p)
+				}
+			}
 		}
-		out.Plans = append(out.Plans, p)
 	}
 	if len(out.Plans) > 24 {
 		out.Plans = out.Plans[:24]

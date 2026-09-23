@@ -241,6 +241,57 @@ func TestIdempotentCreationAndPersonalizedFeed(t *testing.T) {
 	}
 }
 
+func TestBatchedFeedPreservesOrderPaginationAndMembership(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	host, member := testUser(t, s), testUser(t, s)
+	first := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)
+	ids := make([]string, 30)
+	for i := range ids {
+		ids[i] = NewID()
+		_, err := s.DB.Exec(ctx, `INSERT INTO invitations(id,host_id,title,category,area,location,starts_at,join_deadline,spaces) VALUES($1,$2,$3,'Study','Central','Library',$4,$5,2)`, ids[i], host, "Study plan", first.Add(time.Duration(i)*time.Minute), first.Add(-time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.Join(ctx, member, ids[3]); err != nil {
+		t.Fatal(err)
+	}
+	batched, err := s.ListPlans(ctx, member, FeedFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.FeedDetailsSequential = true
+	sequential, err := s.ListPlans(ctx, member, FeedFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(batched.Plans) != 24 || batched.NextCursor == "" || len(sequential.Plans) != 24 {
+		t.Fatalf("first page mismatch: batched=%d sequential=%d cursor=%q", len(batched.Plans), len(sequential.Plans), batched.NextCursor)
+	}
+	for i := range batched.Plans {
+		if batched.Plans[i].ID != ids[i] || batched.Plans[i].ID != sequential.Plans[i].ID || batched.Plans[i].MyStatus != sequential.Plans[i].MyStatus {
+			t.Fatalf("plan %d differs: batched=%+v sequential=%+v", i, batched.Plans[i], sequential.Plans[i])
+		}
+	}
+	if batched.Plans[3].MyStatus != "confirmed" {
+		t.Fatalf("membership missing: %+v", batched.Plans[3])
+	}
+	s.FeedDetailsSequential = false
+	second, err := s.ListPlans(ctx, member, FeedFilter{Cursor: batched.NextCursor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Plans) != 6 || second.NextCursor != "" {
+		t.Fatalf("second page mismatch: %+v", second)
+	}
+	for i, p := range second.Plans {
+		if p.ID != ids[i+24] {
+			t.Fatalf("second page order at %d: %s", i, p.ID)
+		}
+	}
+}
+
 func TestOutboxRecoveryAndNotificationDeduplication(t *testing.T) {
 	raw := os.Getenv("TEST_REDIS_URL")
 	if raw == "" {
