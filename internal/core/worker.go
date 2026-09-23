@@ -69,6 +69,7 @@ func (s *Store) DeliverOutbox(ctx context.Context) error {
 				tx.Rollback(ctx)
 				return err
 			}
+			afterOutboxPublish()
 		}
 		_, err = tx.Exec(ctx, `UPDATE outbox_events SET delivered_at=clock_timestamp() WHERE id=$1`, id)
 		if err != nil {

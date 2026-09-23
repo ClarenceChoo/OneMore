@@ -80,6 +80,17 @@ go run ./cmd/load -url http://127.0.0.1:3000/api/plans -workers 20 -duration 30s
 The tool reports request count, errors, throughput, and p50/p95 latency. Record hardware, dataset size, and request mix when sharing results. Synthetic requests are not user activity.
 
 The [local baseline](docs/benchmark.md) records one measured run and its limits.
+The [mixed workload study](docs/benchmark.md#mixed-workload-study) compares feed query designs using 3,000 plans, 12,000 memberships, filtering, joins, and leaves. Its raw results are checked in separately.
+
+## Process recovery check
+
+The integration suite also starts two API processes and two worker processes against the isolated test database. It races claims across the APIs, simulates a Redis connection failure, and uses a test-only worker binary that exits immediately after Redis publish but before the PostgreSQL commit. After the normal workers restart, the test verifies capacity, event recovery, and one notification despite duplicate stream entries. Run it with the same `TEST_DATABASE_URL` and `TEST_REDIS_URL` used above:
+
+```bash
+go test ./internal/core -run TestTwoAPIsAndWorkerRecoveryAcrossProcesses -count=1 -v
+```
+
+Redis stream entries include the durable outbox event ID. Delivery is at least once: a crash between Redis publish and the PostgreSQL commit can publish the same ID again. Notification persistence deduplicates by that ID; any future stream consumer must do the same.
 
 ## Deploy on Linux
 
