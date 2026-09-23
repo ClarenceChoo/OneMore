@@ -54,10 +54,6 @@ func main() {
 		if err = core.ApplyMigrations(ctx, db); err != nil {
 			log.Fatal(err)
 		}
-		// Older fixed-profile sessions should not bypass the new sign-in screen.
-		if _, err = db.Exec(ctx, `DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE subject LIKE 'demo:%')`); err != nil {
-			log.Fatal(err)
-		}
 	}
 	var rdb *redis.Client
 	if raw := os.Getenv("REDIS_URL"); raw != "" {

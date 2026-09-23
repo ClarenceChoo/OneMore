@@ -22,7 +22,7 @@ The first audience is a single community whose members already make small group 
 10. Let members compare chronological discovery with an explainable For you view. Save interests, preferred area, and local-time availability. Record visible impressions, clicks, and joins with a feed source for later evaluation.
 11. Provide a local operations view for API latency and errors, database connections, pending outbox work, and notification delay. Keep it off the public web proxy.
 
-Direct messaging, payments, media uploads, reputation, recommendation ranking, and public profiles are outside this release.
+Direct messaging, payments, media uploads, reputation, learned ranking, and public profiles are outside this release.
 
 ## UX requirements
 
