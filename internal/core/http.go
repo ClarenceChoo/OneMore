@@ -63,6 +63,17 @@ func (a *API) handler(fn func(http.ResponseWriter, *http.Request, User) error) h
 }
 func (a *API) Router() http.Handler {
 	mux := http.NewServeMux()
+	metrics := &opsMetrics{startedAt: time.Now()}
+	mux.HandleFunc("GET /internal/ops", metrics.servePage)
+	mux.HandleFunc("GET /internal/ops.json", func(w http.ResponseWriter, r *http.Request) {
+		snapshot, err := metrics.snapshot(r.Context(), a.Store)
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		jsonResponse(w, http.StatusOK, snapshot)
+	})
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.Store.DB.Ping(r.Context()); err != nil {
 			writeErr(w, err)
@@ -94,6 +105,18 @@ func (a *API) Router() http.Handler {
 	mux.HandleFunc("POST /api/notifications/{id}/read", a.handler(a.readNotification))
 	mux.HandleFunc("GET /api/events", a.handler(a.events))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+		tracked := &statusWriter{ResponseWriter: w}
+		if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/events" {
+			defer func() {
+				status := tracked.status
+				if status == 0 {
+					status = http.StatusOK
+				}
+				metrics.observe(time.Since(started), status)
+			}()
+		}
+		w = tracked
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "same-origin")
 		if r.Method == http.MethodPost {

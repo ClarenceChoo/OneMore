@@ -101,6 +101,8 @@ go test ./internal/core -run TestTwoAPIsAndWorkerRecoveryAcrossProcesses -count=
 
 Redis stream entries include the durable outbox event ID. Delivery is at least once: a crash between Redis publish and the PostgreSQL commit can publish the same ID again. Notification persistence deduplicates by that ID; any future stream consumer must do the same.
 
+The local [operations dashboard](http://127.0.0.1:8080/internal/ops) shows API latency and errors, database connections, outbox backlog, and notification delay. [Operations notes](docs/operations.md) cover upgrades and a repeatable failure-and-recovery exercise.
+
 ## Deploy on Linux
 
 Use a host with Docker Compose and a domain pointing to it. Create `.env` from `.env.example`, set a strong `POSTGRES_PASSWORD`, `DOMAIN`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and `OIDC_REDIRECT_URL` to `https://YOUR_DOMAIN/auth/callback`. Then run:
