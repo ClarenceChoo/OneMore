@@ -92,12 +92,12 @@ Read the [architecture design](docs/architecture.md) for the data model, join an
 
 The API and worker entry point is in `cmd/onemore`, domain and persistence code in `internal/core`, versioned SQL in `internal/core/migrations`, and the web app in `web/src`.
 
-Integration tests use a **separate database whose name ends in `_test`**. Create it once while Compose is running:
+For development checks, install Go and Node.js/npm in addition to Docker. Integration tests use a **separate database whose name ends in `_test`** and Redis database 14. Create the database once while Compose is running:
 
 ```bash
 docker compose exec -T postgres psql -U onemore -d postgres -c 'CREATE DATABASE onemore_test;'
 TEST_DATABASE_URL='postgres://onemore:onemore_local@127.0.0.1:55432/onemore_test?sslmode=disable' \
-TEST_REDIS_URL='redis://127.0.0.1:6379' \
+TEST_REDIS_URL='redis://127.0.0.1:6379/14' \
 go test -race ./...
 
 cd web
@@ -109,7 +109,7 @@ The process recovery test starts two API processes and two workers, races claims
 
 ```bash
 TEST_DATABASE_URL='postgres://onemore:onemore_local@127.0.0.1:55432/onemore_test?sslmode=disable' \
-TEST_REDIS_URL='redis://127.0.0.1:6379' \
+TEST_REDIS_URL='redis://127.0.0.1:6379/14' \
 go test ./internal/core -run TestTwoAPIsAndWorkerRecoveryAcrossProcesses -count=1 -v
 ```
 

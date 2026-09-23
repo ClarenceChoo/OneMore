@@ -31,7 +31,7 @@ The repeatable process test uses a database ending in `_test` and the configured
 
 ```bash
 TEST_DATABASE_URL='postgres://onemore:onemore_local@127.0.0.1:55432/onemore_test?sslmode=disable' \
-TEST_REDIS_URL='redis://127.0.0.1:6379' \
+TEST_REDIS_URL='redis://127.0.0.1:6379/14' \
 go test ./internal/core -run TestTwoAPIsAndWorkerRecoveryAcrossProcesses -count=1 -v
 ```
 
