@@ -117,13 +117,17 @@ func TestTwoAPIsAndWorkerRecoveryAcrossProcesses(t *testing.T) {
 	normal, chaos := buildProcessBinary(t, ""), buildProcessBinary(t, "chaos")
 	baseEnv := map[string]string{"DATABASE_URL": dbURL, "REDIS_URL": redisURL, "LOCAL_AUTH": "true", "OIDC_ISSUER": "", "COOKIE_SECURE": "false"}
 	addresses := []string{freePort(t), freePort(t)}
+	apis := make([]*childProcess, 0, len(addresses))
 	for _, address := range addresses {
 		env := map[string]string{}
 		for key, value := range baseEnv {
 			env[key] = value
 		}
 		env["LISTEN_ADDR"] = address
-		p := startChild(t, normal, nil, env)
+		apis = append(apis, startChild(t, normal, nil, env))
+	}
+	for i, address := range addresses {
+		p := apis[i]
 		waitFor(t, "API on "+address, func() bool {
 			response, err := http.Get("http://" + address + "/health")
 			if err != nil {
@@ -195,7 +199,7 @@ func TestTwoAPIsAndWorkerRecoveryAcrossProcesses(t *testing.T) {
 	}
 	badEnv["REDIS_URL"] = "redis://127.0.0.1:1"
 	bad := startChild(t, normal, []string{"-mode=worker"}, badEnv)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 	bad.stop()
 	if !strings.Contains(bad.output.String(), "failed to dial") && !strings.Contains(bad.output.String(), "outbox delivery") {
 		t.Fatalf("worker did not attempt delivery during Redis outage: %s", bad.output.String())

@@ -19,12 +19,14 @@ On the same local arm64 machine, an isolated PostgreSQL database held 3,000 upco
 
 | Feed details | Five-second ID cache | Requests/s | Overall p95 / p99 | Browsing p95 / p99 | pgx query calls/request |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Sequential | Off | 176.5 | 187.5 / 364.1 ms | 183.0 / 383.9 ms | 25.7 |
-| Sequential | On | 185.5 | 189.0 / 235.7 ms | 193.2 / 253.4 ms | 24.8 |
-| Batched | Off | 778.3 | 63.0 / 95.6 ms | 44.7 / 60.5 ms | 3.9 |
-| Batched | On | 840.7 | 56.4 / 83.2 ms | 41.8 / 52.8 ms | 3.0 |
+| Sequential | Off | 288.0 | 106.9 / 324.5 ms | 110.5 / 335.2 ms | 25.6 |
+| Sequential | On | 309.3 | 88.9 / 394.1 ms | 86.1 / 398.7 ms | 24.8 |
+| Batched | Off | 1,274.3 | 35.6 / 57.8 ms | 20.7 / 33.9 ms | 3.9 |
+| Batched | On | 1,396.6 | 32.4 / 45.7 ms | 18.2 / 25.9 ms | 3.0 |
 
-The previous feed queried each of up to 25 plan details in sequence. The batched version loads those details in one query, then restores feed order and each viewer's membership state. Throughput increased about 4.4× without caching and 4.5× with caching in this run. Filtering, join, and leave p95/p99, request counts, and error counts for every scenario are in [the raw JSON results](performance-study-2026-09-23.json). These measurements are from one local run; the in-process HTTP server excludes Nginx and network hop overhead. The changed request mix means read and write percentiles should be read separately from the overall percentile. A repeated study on the target deployment hardware is needed before making capacity claims.
+The previous feed queried each of up to 25 plan details in sequence. The batched version loads those details in one query, then restores feed order and each viewer's membership state. Throughput increased about 4.4× without caching and 4.5× with caching in this run. Filtering, join, and leave p95/p99, request counts, and error counts for every scenario are in [the raw JSON results](performance-study-2026-09-23.json). These measurements are from one local run on the final code, including discovery event writes and API instrumentation; the in-process HTTP server excludes Nginx and network hop overhead. The changed request mix means read and write percentiles should be read separately from the overall percentile. A repeated study on the target deployment hardware is needed before making capacity claims.
+
+To check run-order effects, a second run executed the batched scenarios first. It measured 1,375.6 requests/s without the cache and 1,326.5 with it; the later sequential scenarios measured 272.4 and 294.4 requests/s respectively, with zero errors throughout. The improvement persisted, while the cache benefit varied between runs. [Reverse-order raw results](performance-study-2026-09-23-reverse.json) include the latency distributions and query counts. These two runs do not remove host scheduling or warm-cache variance.
 
 To reproduce, create a dedicated database and run the study. It refuses a database name without the `_bench` suffix and resets only that database:
 
@@ -35,4 +37,4 @@ STUDY_REDIS_URL='redis://127.0.0.1:6379/15' \
 go run ./cmd/study -plans 3000 -workers 20 -duration 10s
 ```
 
-The first command is needed only once. The study compares sequential and batched detail loading with the feed ID cache off and on. The sequential path remains available only to make the comparison reproducible; the application uses batched loading by default.
+The first command is needed only once. Add `-reverse` to run the batched scenarios first. The study compares sequential and batched detail loading with the feed ID cache off and on. The sequential path remains available only to make the comparison reproducible; the application uses batched loading by default.

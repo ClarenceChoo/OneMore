@@ -201,6 +201,7 @@ func main() {
 	plans := flag.Int("plans", 3000, "number of plans to seed")
 	workers := flag.Int("workers", 20, "concurrent HTTP clients")
 	duration := flag.Duration("duration", 10*time.Second, "duration per scenario")
+	reverse := flag.Bool("reverse", false, "run batched scenarios before sequential scenarios")
 	flag.Parse()
 	if *plans < *workers || *plans < 100 || *workers < 1 || *duration < time.Second {
 		panic("use at least 100 plans, at least as many plans as workers, and a duration of at least one second")
@@ -247,7 +248,11 @@ func main() {
 		Duration    string     `json:"durationPerScenario"`
 		Scenarios   []scenario `json:"scenarios"`
 	}{Plans: *plans, Memberships: *plans * 4, Workers: *workers, Duration: duration.String()}
-	for _, sequential := range []bool{true, false} {
+	order := []bool{true, false}
+	if *reverse {
+		order = []bool{false, true}
+	}
+	for _, sequential := range order {
 		for _, cache := range []bool{false, true} {
 			result, err := run(ctx, db, redisClient, q, *plans, *workers, *duration, cache, sequential)
 			if err != nil {
