@@ -4,29 +4,33 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/crypto/argon2"
 	"golang.org/x/oauth2"
 )
 
 type Auth struct {
 	Store  *Store
-	Dev    bool
+	Local  bool
 	Secure bool
 	OIDC   *oidc.IDTokenVerifier
 	OAuth  *oauth2.Config
 }
 
 func NewAuth(ctx context.Context, s *Store) (*Auth, error) {
-	a := &Auth{Store: s, Dev: os.Getenv("DEV_AUTH") == "true", Secure: os.Getenv("COOKIE_SECURE") == "true"}
+	a := &Auth{Store: s, Local: os.Getenv("LOCAL_AUTH") == "true", Secure: os.Getenv("COOKIE_SECURE") == "true"}
 	issuer := os.Getenv("OIDC_ISSUER")
 	if issuer == "" {
 		return a, nil
@@ -137,25 +141,78 @@ func (a *Auth) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, "/", http.StatusFound)
 }
-func (a *Auth) DevLogin(w http.ResponseWriter, r *http.Request) {
-	if !a.Dev {
+
+var handlePattern = regexp.MustCompile(`^[a-z0-9_]{3,24}$`)
+
+func passwordHash(password string) (string, error) {
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
+	}
+	hash := argon2.IDKey([]byte(password), salt, 2, 19*1024, 1, 32)
+	return fmt.Sprintf("$argon2id$v=19$m=19456,t=2,p=1$%s$%s", base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(hash)), nil
+}
+
+func matchesPassword(password, encoded string) bool {
+	parts := strings.Split(encoded, "$")
+	if len(parts) != 6 || parts[0] != "" || parts[1] != "argon2id" || parts[2] != "v=19" || parts[3] != "m=19456,t=2,p=1" {
+		return false
+	}
+	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
+	if err != nil || len(salt) != 16 {
+		return false
+	}
+	want, err := base64.RawStdEncoding.DecodeString(parts[5])
+	if err != nil || len(want) != 32 {
+		return false
+	}
+	got := argon2.IDKey([]byte(password), salt, 2, 19*1024, 1, 32)
+	return subtle.ConstantTimeCompare(got, want) == 1
+}
+
+func (a *Auth) Register(w http.ResponseWriter, r *http.Request) {
+	if !a.Local {
 		writeErr(w, NotFound())
 		return
 	}
 	var in struct {
-		Name string `json:"name"`
+		Name     string `json:"name"`
+		Handle   string `json:"handle"`
+		Password string `json:"password"`
 	}
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
 		return
 	}
-	names := map[string]string{"Alex": "11111111-1111-4111-8111-111111111111", "Sam": "22222222-2222-4222-8222-222222222222", "Jordan": "33333333-3333-4333-8333-333333333333"}
-	id, ok := names[in.Name]
-	if !ok {
-		writeErr(w, Bad("invalid_user", "Choose a demo profile."))
+	in.Name = strings.TrimSpace(in.Name)
+	in.Handle = strings.ToLower(strings.TrimSpace(in.Handle))
+	if len([]rune(in.Name)) < 2 || len([]rune(in.Name)) > 50 || !handlePattern.MatchString(in.Handle) || len(in.Password) < 10 || len(in.Password) > 128 {
+		writeErr(w, Bad("invalid_profile", "Use a name of 2–50 characters, a handle of 3–24 letters, numbers, or underscores, and a password of 10–128 characters."))
 		return
 	}
-	_, err := a.Store.DB.Exec(r.Context(), `INSERT INTO users(id,subject,name) VALUES($1,$2,$3) ON CONFLICT(subject) DO NOTHING`, id, "demo:"+in.Name, in.Name)
+	hash, err := passwordHash(in.Password)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	tx, err := a.Store.DB.Begin(r.Context())
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	defer tx.Rollback(r.Context())
+	var id string
+	err = tx.QueryRow(r.Context(), `INSERT INTO users(id,subject,name) VALUES($1,$2,$3) ON CONFLICT(subject) DO NOTHING RETURNING id`, NewID(), "local:"+in.Handle, in.Name).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeErr(w, &AppError{"handle_taken", "That handle is already in use.", http.StatusConflict})
+		return
+	}
+	if err == nil {
+		_, err = tx.Exec(r.Context(), `INSERT INTO local_credentials(user_id,handle,password_hash) VALUES($1,$2,$3)`, id, in.Handle, hash)
+	}
+	if err == nil {
+		err = tx.Commit(r.Context())
+	}
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -164,7 +221,42 @@ func (a *Auth) DevLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	jsonResponse(w, http.StatusOK, map[string]string{"name": in.Name})
+	jsonResponse(w, http.StatusCreated, map[string]string{"id": id, "name": in.Name})
+}
+
+func (a *Auth) LocalLogin(w http.ResponseWriter, r *http.Request) {
+	if !a.Local {
+		writeErr(w, NotFound())
+		return
+	}
+	var in struct {
+		Handle   string `json:"handle"`
+		Password string `json:"password"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	in.Handle = strings.ToLower(strings.TrimSpace(in.Handle))
+	if !handlePattern.MatchString(in.Handle) || len(in.Password) == 0 || len(in.Password) > 128 {
+		writeErr(w, Bad("invalid_credentials", "Check your handle and password."))
+		return
+	}
+	var id, hash string
+	err := a.Store.DB.QueryRow(r.Context(), `SELECT user_id,password_hash FROM local_credentials WHERE handle=$1`, in.Handle).Scan(&id, &hash)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !matchesPassword(in.Password, hash)) {
+		writeErr(w, &AppError{"invalid_credentials", "Check your handle and password.", http.StatusUnauthorized})
+		return
+	}
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if err = a.session(r.Context(), w, id); err != nil {
+		writeErr(w, err)
+		return
+	}
+	jsonResponse(w, http.StatusOK, map[string]string{"id": id})
 }
 func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie("onemore_session"); err == nil {
@@ -174,5 +266,5 @@ func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 func (a *Auth) Config(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, 200, map[string]any{"devAuth": a.Dev, "oidc": a.OAuth != nil})
+	jsonResponse(w, 200, map[string]any{"localAuth": a.Local, "oidc": a.OAuth != nil})
 }

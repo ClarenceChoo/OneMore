@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Bell, Compass, LogOut, Plus, UsersRound } from 'lucide-react'
-import { ApiError, type AuthConfig, type User, request } from './api'
+import { ApiError, type AuthConfig, type User, post, request } from './api'
 import { Feed } from './pages/Feed'
 import { Detail } from './pages/Detail'
 import { NewPlan } from './pages/NewPlan'
@@ -61,8 +61,20 @@ function NavItem({ icon, label, active, onClick }: { icon: React.ReactNode; labe
 }
 
 function Welcome({ auth, error, onLogin }: { auth: AuthConfig | null; error: string; onLogin: (u: User) => void }) {
-  const [busy, setBusy] = useState('')
+  const [mode, setMode] = useState<'register' | 'login'>('register')
+  const [name, setName] = useState('')
+  const [handle, setHandle] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState(error)
-  async function demo(name: string) { setBusy(name); setLocalError(''); try { await request('/auth/dev', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }); onLogin(await request<User>('/api/me')) } catch (e) { setLocalError((e as Error).message) } finally { setBusy('') } }
-  return <div className="welcome"><div className="welcome-top"><span className="brand"><span className="brand-mark"><i /><i /><i /></span><span>OneMore</span></span></div><div className="welcome-main"><div className="welcome-illustration" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="face face-one">A</div><div className="face face-two">S</div><div className="face face-three">J</div><div className="empty-seat"><Plus size={29} /></div></div><div className="welcome-copy"><h1>Good plans are<br />better together.</h1><p>Find the extra person your plan needs, or join someone else’s. Simple plans, clear spots, no group chat chase.</p>{auth?.oidc && <a className="primary-button" href="/auth/login">Sign in to get started</a>}{auth?.devAuth && <div className="demo-login"><span>Choose a demo profile</span><div>{['Alex', 'Sam', 'Jordan'].map(name => <button key={name} disabled={!!busy} onClick={() => demo(name)}>{busy === name ? 'Opening…' : name}</button>)}</div></div>}{!auth?.oidc && !auth?.devAuth && <p className="inline-error">Sign-in is not configured.</p>}{localError && <p className="inline-error" role="alert">{localError}</p>}</div></div></div>
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setLocalError('')
+    try {
+      await post(mode === 'register' ? '/auth/register' : '/auth/local/login', mode === 'register' ? { name, handle, password } : { handle, password })
+      onLogin(await request<User>('/api/me'))
+    } catch (err) { setLocalError((err as Error).message) } finally { setBusy(false) }
+  }
+  return <div className="welcome"><div className="welcome-top"><span className="brand"><span className="brand-mark"><i /><i /><i /></span><span>OneMore</span></span></div><div className="welcome-main"><div className="welcome-illustration" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="face face-one"><UsersRound size={48} /></div><div className="face face-two"><Compass size={58} /></div><div className="face face-three"><Plus size={40} /></div><div className="empty-seat"><Plus size={29} /></div></div><div className="welcome-copy"><h1>Good plans are<br />better together.</h1><p>Find the extra person your plan needs, or join someone else’s. Simple plans, clear spots, no group chat chase.</p>{auth?.localAuth && <div className="local-auth"><div className="auth-tabs" aria-label="Account access"><button className={mode === 'register' ? 'selected' : ''} onClick={() => { setMode('register'); setLocalError('') }}>Create profile</button><button className={mode === 'login' ? 'selected' : ''} onClick={() => { setMode('login'); setLocalError('') }}>Sign in</button></div><form onSubmit={submit}>{mode === 'register' && <label className="field"><span>Your name</span><input value={name} onChange={e => setName(e.target.value)} autoComplete="name" minLength={2} maxLength={50} required placeholder="Name others will see" /></label>}<label className="field"><span>Handle</span><input value={handle} onChange={e => setHandle(e.target.value)} autoComplete="username" minLength={3} maxLength={24} pattern="[A-Za-z0-9_]+" required placeholder="Your unique handle" /></label><label className="field"><span>Password</span><input value={password} onChange={e => setPassword(e.target.value)} type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} minLength={mode === 'register' ? 10 : undefined} maxLength={128} required placeholder={mode === 'register' ? 'At least 10 characters' : 'Your password'} /></label>{localError && <p className="inline-error" role="alert">{localError}</p>}<button className="primary-button" disabled={busy} type="submit">{busy ? 'Please wait…' : mode === 'register' ? 'Create profile' : 'Sign in'}</button></form></div>}{auth?.oidc && <a className="provider-link" href="/auth/login">Continue with sign-in provider</a>}{!auth?.oidc && !auth?.localAuth && <p className="inline-error">Sign-in is not configured.</p>}{!auth?.localAuth && localError && <p className="inline-error" role="alert">{localError}</p>}</div></div></div>
 }

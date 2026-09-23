@@ -5,6 +5,12 @@ CREATE TABLE IF NOT EXISTS users (
   email text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS local_credentials (
+  user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  handle text UNIQUE NOT NULL,
+  password_hash text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash text PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -10,17 +10,17 @@ You need Docker and Docker Compose.
 docker compose up -d --build
 ```
 
-Open [localhost:3000](http://localhost:3000). Choose Alex, Sam, or Jordan to try the local demo. PostgreSQL is available on `127.0.0.1:55432`; Redis is on `127.0.0.1:6379`. The API is on `127.0.0.1:8080`.
+Open [localhost:3000](http://localhost:3000) and create a profile with your own handle and password. For multiple people at once, create another profile in an Incognito window or a separate browser profile. Each browser session keeps its own sign-in. PostgreSQL is available on `127.0.0.1:55432`; Redis is on `127.0.0.1:6379`. The API is on `127.0.0.1:8080`.
 
 Stop the app with `docker compose down`. This keeps database data. To start with an empty database, run `docker compose down -v`.
 
 ## Product flow
 
-1. Alex creates a plan with one space.
-2. Sam joins and takes the space.
-3. Jordan joins the waitlist.
-4. Sam leaves. Jordan receives a ten-minute offer in Inbox.
-5. Jordan accepts or declines. An expired offer advances to the next person.
+1. One person creates a plan with one space.
+2. A second person joins and takes the space.
+3. A third person joins the waitlist.
+4. The second person leaves. The next person receives a ten-minute offer in Inbox.
+5. They accept or decline. An expired offer advances to the next person.
 
 Spaces count other participants and exclude the host. A plan closes at its join deadline. Hosts can cancel plans; cancellation invalidates pending offers.
 
@@ -43,6 +43,8 @@ The browser uses cookie-based sessions. Main endpoints:
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| POST | `/auth/register` | Create a local profile and sign in |
+| POST | `/auth/local/login` | Sign in with a local handle and password |
 | GET | `/api/plans` | Upcoming feed with `category`, `area`, `before`, `open`, and `cursor` filters |
 | POST | `/api/plans` | Create; accepts `Idempotency-Key` |
 | GET | `/api/plans/{id}` | Current detail and your status |
@@ -87,7 +89,7 @@ Use a host with Docker Compose and a domain pointing to it. Create `.env` from `
 docker compose -f compose.yaml -f compose.prod.yaml up -d --build
 ```
 
-The production overlay disables demo identities, uses secure cookies, and runs Caddy for HTTPS. Configure your OpenID Connect provider to allow the exact callback URL. Back up the PostgreSQL volume. Store `.env` outside version control. Redis can be temporarily unavailable without granting an extra space; notifications and live updates catch up after recovery.
+The production overlay disables local password sign-in, uses secure cookies, and runs Caddy for HTTPS. Configure your OpenID Connect provider to allow the exact callback URL. Back up the PostgreSQL volume. Store `.env` outside version control. Redis can be temporarily unavailable without granting an extra space; notifications and live updates catch up after recovery.
 
 ## Current limits
 

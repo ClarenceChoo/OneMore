@@ -1,6 +1,6 @@
 # Feed benchmark baseline
 
-Measured on 23 September 2026 with the local Docker Compose stack on an arm64 host. Docker had 10 CPUs and 8.22 GB of memory available. The dataset contained one active plan and three demo profiles. The client requested `GET /api/plans` with a valid local session; the five-second shared feed-ID cache was enabled. Twenty concurrent clients ran for ten seconds through Nginx on `127.0.0.1:3000`.
+Measured on 23 September 2026 with the local Docker Compose stack on an arm64 host. Docker had 10 CPUs and 8.22 GB of memory available. The dataset contained one active plan and three test profiles. The client requested `GET /api/plans` with a valid local session; the five-second shared feed-ID cache was enabled. Twenty concurrent clients ran for ten seconds through Nginx on `127.0.0.1:3000`.
 
 | Metric | Result |
 | --- | ---: |

@@ -10,7 +10,7 @@ The first audience is a single community whose members already make small group 
 
 ## Release scope
 
-1. Sign in with a configured OpenID Connect provider. A clearly marked local development mode supplies demo identities for testing.
+1. Create a local profile with a unique handle and password, or sign in with a configured OpenID Connect provider when deployed. Separate browser sessions can use different profiles simultaneously.
 2. Browse upcoming plans, with filters for category, area, time, and open spaces. Sort by start time and stable ID; paginate with a cursor.
 3. Create a plan with a short title and description, category, tags, meeting place, start time, join deadline, and 1–20 spaces. Spaces exclude the host.
 4. Join an open plan, or join its FIFO waitlist when full. A user has at most one active membership per plan. Repeated join requests return the current result.
@@ -47,7 +47,7 @@ React, TypeScript, and Vite render the client. A Go API owns validation, session
 - `POST /api/plans`, `POST /api/plans/{id}/join`, `POST /api/plans/{id}/leave`, `POST /api/plans/{id}/cancel`
 - `POST /api/plans/{id}/offer/accept`, `POST /api/plans/{id}/offer/decline`
 - `GET /api/notifications`, `POST /api/notifications/{id}/read`, `GET /api/events`
-- `GET /auth/login`, `GET /auth/callback`, `POST /auth/logout`; development identities exist only when enabled by configuration.
+- `POST /auth/register`, `POST /auth/local/login`, `GET /auth/login`, `GET /auth/callback`, `POST /auth/logout`; local password sign-in is disabled in the production overlay.
 
 Mutation responses contain the updated plan and the caller's status. Errors use a consistent JSON shape with a human-readable message and machine-readable code.
 
@@ -57,4 +57,4 @@ Database constraints enforce foreign keys and one membership per user and plan. 
 
 ## Release acceptance
 
-The repository starts with documented Compose commands and environment variables. A new user can create a plan, a second can join, a third can wait, and leaving advances the waitlist. The same sequence remains correct across browser refresh and worker restart. All automated checks pass, and the UI is reviewed at desktop and mobile sizes.
+The repository starts with documented Compose commands and environment variables. Three people can create separate profiles; one can create a plan, a second can join, a third can wait, and leaving advances the waitlist. The same sequence remains correct across browser refresh and worker restart. All automated checks pass, and the UI is reviewed at desktop and mobile sizes.

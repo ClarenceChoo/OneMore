@@ -58,6 +58,10 @@ func main() {
 		if _, err = db.Exec(ctx, string(schema)); err != nil {
 			log.Fatal(err)
 		}
+		// Older fixed-profile sessions should not bypass the new sign-in screen.
+		if _, err = db.Exec(ctx, `DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE subject LIKE 'demo:%')`); err != nil {
+			log.Fatal(err)
+		}
 	}
 	var rdb *redis.Client
 	if raw := os.Getenv("REDIS_URL"); raw != "" {
@@ -76,8 +80,8 @@ func main() {
 	if *mode != "api" {
 		log.Fatal("mode must be api or worker")
 	}
-	if os.Getenv("DEV_AUTH") != "true" && strings.TrimSpace(os.Getenv("OIDC_ISSUER")) == "" {
-		log.Fatal("configure OIDC_ISSUER or enable DEV_AUTH for local use")
+	if os.Getenv("LOCAL_AUTH") != "true" && strings.TrimSpace(os.Getenv("OIDC_ISSUER")) == "" {
+		log.Fatal("configure OIDC_ISSUER or enable LOCAL_AUTH for local use")
 	}
 	auth, err := core.NewAuth(ctx, store)
 	if err != nil {

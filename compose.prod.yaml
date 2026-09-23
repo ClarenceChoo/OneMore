@@ -1,7 +1,7 @@
 services:
   api:
     environment:
-      DEV_AUTH: "false"
+      LOCAL_AUTH: "false"
       COOKIE_SECURE: "true"
   caddy:
     image: caddy:2-alpine
