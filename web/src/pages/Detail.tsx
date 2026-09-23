@@ -7,10 +7,58 @@ export function Detail({ id, navigate, revision }: { id: string; navigate: (to: 
   const [plan, setPlan] = useState<Plan | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
   useEffect(() => { request<Plan>(`/api/plans/${id}`).then(setPlan).catch((e: Error) => setError(e.message)) }, [id, revision])
-  async function act(action: string) { setBusy(true); setError(''); try { setPlan(await post<Plan>(`/api/plans/${id}/${action}`)) } catch (e) { setError((e as Error).message) } finally { setBusy(false) } }
+
+  async function act(action: string) {
+    setBusy(true)
+    setError('')
+    try { setPlan(await post<Plan>(`/api/plans/${id}/${action}`)) }
+    catch (e) { setError((e as Error).message) }
+    finally { setBusy(false) }
+  }
+
   if (!plan && !error) return <div className="content-wrap page-loading">Loading plan…</div>
   if (!plan) return <div className="content-wrap"><button className="back-link" onClick={() => navigate('/')}>← Back to plans</button><p className="inline-error">{error}</p></div>
-  const closed = plan.status === 'cancelled' || new Date(plan.joinDeadline).getTime() <= Date.now() || new Date(plan.startsAt).getTime() <= Date.now()
-  return <div className="content-wrap detail-page"><button className="back-link" onClick={() => navigate('/')}><ArrowLeft size={17} /> Back to plans</button><div className="detail-layout"><article className="detail-main"><div className="detail-category">{plan.category}</div><h1>{plan.title}</h1><p className="detail-host">Hosted by {plan.hostName}</p><div className="detail-facts"><div><CalendarDays size={20} /><span><strong>{dateLabel(plan.startsAt, { weekday: 'long', month: 'long', day: 'numeric' })}</strong><small>{dateLabel(plan.startsAt, { hour: 'numeric', minute: '2-digit' })}</small></span></div><div><MapPin size={20} /><span><strong>{plan.location}</strong><small>{plan.area}</small></span></div><div><UsersRound size={20} /><span><strong>{plan.confirmed} going</strong><small>{plan.spaces} {plan.spaces === 1 ? 'space' : 'spaces'} plus the host</small></span></div></div>{plan.description && <section className="detail-description"><h2>About this plan</h2><p>{plan.description}</p></section>}{plan.tags.length > 0 && <div className="tag-row">{plan.tags.map(tag => <span key={tag}>#{tag}</span>)}</div>}</article><aside className="join-panel"><div className="join-panel-top"><span className="panel-label">Your spot</span><strong>{statusText(plan)}</strong><p>{plan.myStatus === 'host' ? 'You’re hosting this plan.' : plan.myStatus === 'confirmed' ? 'You’re all set. See you there.' : plan.myStatus === 'waitlisted' ? 'You’ll get an offer if a space opens.' : plan.myStatus === 'offered' ? 'A space is reserved for you.' : closed ? 'Joining has closed.' : plan.available > 0 ? 'Claim a space while it’s open.' : 'Join the waitlist for the next space.'}</p></div>{plan.myStatus === 'offered' && plan.offerExpiresAt && <div className="offer-time"><Clock3 size={17} /> {timeUntil(plan.offerExpiresAt)} to respond</div>}{error && <p className="inline-error" role="alert">{error}</p>}<div className="join-actions">{plan.myStatus === 'offered' ? <><button className="primary-button" disabled={busy} onClick={() => act('offer/accept')}>Accept space</button><button className="secondary-button" disabled={busy} onClick={() => act('offer/decline')}>Decline offer</button></> : plan.myStatus === 'confirmed' || plan.myStatus === 'waitlisted' ? <button className="secondary-button" disabled={busy} onClick={() => act('leave')}>Leave plan</button> : plan.myStatus === 'host' ? plan.status === 'active' && <button className="danger-button" disabled={busy} onClick={() => { if (window.confirm('Cancel this plan for everyone?')) act('cancel') }}>Cancel plan</button> : !closed && <button className="primary-button" disabled={busy} onClick={() => act('join')}>{plan.available > 0 ? 'Join this plan' : 'Join waitlist'}</button>}</div><div className="join-deadline">Join by {dateLabel(plan.joinDeadline)}</div></aside></div></div>
+
+  const cancelled = plan.status === 'cancelled'
+  const closed = cancelled || new Date(plan.joinDeadline).getTime() <= Date.now() || new Date(plan.startsAt).getTime() <= Date.now()
+  const spotMessage = cancelled ? 'This plan was cancelled.'
+    : plan.myStatus === 'host' ? 'You’re hosting this plan.'
+    : plan.myStatus === 'confirmed' ? 'You’re all set. See you there.'
+    : plan.myStatus === 'waitlisted' ? 'You’ll get an offer if a space opens.'
+    : plan.myStatus === 'offered' ? 'A space is reserved for you.'
+    : closed ? 'Joining has closed.'
+    : plan.available > 0 ? 'Claim a space while it’s open.'
+    : 'Join the waitlist for the next space.'
+
+  return <div className="content-wrap detail-page">
+    <button className="back-link" onClick={() => navigate('/')}><ArrowLeft size={17} /> Back to plans</button>
+    <div className="detail-layout">
+      <article className="detail-main">
+        <div className="detail-category">{plan.category}</div>
+        <h1>{plan.title}</h1>
+        <p className="detail-host">Hosted by {plan.hostName}</p>
+        <div className="detail-facts">
+          <div><CalendarDays size={20} /><span><strong>{dateLabel(plan.startsAt, { weekday: 'long', month: 'long', day: 'numeric' })}</strong><small>{dateLabel(plan.startsAt, { hour: 'numeric', minute: '2-digit' })}</small></span></div>
+          <div><MapPin size={20} /><span><strong>{plan.location}</strong><small>{plan.area}</small></span></div>
+          <div><UsersRound size={20} /><span><strong>{plan.confirmed} going</strong><small>{plan.spaces} {plan.spaces === 1 ? 'space' : 'spaces'} plus the host</small></span></div>
+        </div>
+        {plan.description && <section className="detail-description"><h2>About this plan</h2><p>{plan.description}</p></section>}
+        {plan.tags.length > 0 && <div className="tag-row">{plan.tags.map(tag => <span key={tag}>#{tag}</span>)}</div>}
+      </article>
+      <aside className="join-panel">
+        <div className="join-panel-top"><span className="panel-label">Your spot</span><strong>{statusText(plan)}</strong><p>{spotMessage}</p></div>
+        {!cancelled && plan.myStatus === 'offered' && plan.offerExpiresAt && <div className="offer-time"><Clock3 size={17} /> {timeUntil(plan.offerExpiresAt)} to respond</div>}
+        {error && <p className="inline-error" role="alert">{error}</p>}
+        {!cancelled && <div className="join-actions">
+          {plan.myStatus === 'offered' ? <><button className="primary-button" disabled={busy} onClick={() => act('offer/accept')}>Accept space</button><button className="secondary-button" disabled={busy} onClick={() => act('offer/decline')}>Decline offer</button></>
+            : plan.myStatus === 'confirmed' || plan.myStatus === 'waitlisted' ? <button className="secondary-button" disabled={busy} onClick={() => act('leave')}>Leave plan</button>
+            : plan.myStatus === 'host' ? <button className="danger-button" disabled={busy} onClick={() => { if (window.confirm('Cancel this plan for everyone?')) act('cancel') }}>Cancel plan</button>
+            : !closed && <button className="primary-button" disabled={busy} onClick={() => act('join')}>{plan.available > 0 ? 'Join this plan' : 'Join waitlist'}</button>}
+        </div>}
+        {!cancelled && <div className="join-deadline">Join by {dateLabel(plan.joinDeadline)}</div>}
+      </aside>
+    </div>
+  </div>
 }

@@ -148,6 +148,9 @@ func TestWaitlistOfferExpiryAndFairness(t *testing.T) {
 	if _, err = s.OfferAction(ctx, b, plan.ID, true); err != nil {
 		t.Fatal(err)
 	}
+	if again, err := s.OfferAction(ctx, b, plan.ID, true); err != nil || again.MyStatus != "confirmed" {
+		t.Fatalf("repeated acceptance should return confirmed membership: %+v, %v", again, err)
+	}
 	p, err := s.GetPlan(ctx, host, plan.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -174,6 +177,9 @@ func TestHostCancellationInvalidatesOffers(t *testing.T) {
 	}
 	if _, err := s.OfferAction(ctx, b, plan.ID, true); err == nil {
 		t.Fatal("cancelled offer was accepted")
+	}
+	if member, err := s.GetPlan(ctx, b, plan.ID); err != nil || member.MyStatus != "left" {
+		t.Fatalf("cancelled offer left stale membership: %+v, %v", member, err)
 	}
 	p, err := s.GetPlan(ctx, host, plan.ID)
 	if err != nil {

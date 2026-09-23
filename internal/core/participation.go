@@ -200,11 +200,27 @@ func (s *Store) Leave(ctx context.Context, userID, id string) (Plan, error) {
 
 func (s *Store) OfferAction(ctx context.Context, userID, id string, accept bool) (Plan, error) {
 	return s.mutate(ctx, userID, id, func(ctx context.Context, tx pgx.Tx, p lockedPlan, now time.Time) error {
+		if p.Status != "active" {
+			return Conflict("closed", "This plan was cancelled.")
+		}
+		var memberStatus string
+		err := tx.QueryRow(ctx, `SELECT status FROM memberships WHERE invitation_id=$1 AND user_id=$2`, id, userID).Scan(&memberStatus)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if (accept && memberStatus == "confirmed") || (!accept && memberStatus == "left") {
+			return nil
+		}
 		var offerID string
 		var expires time.Time
 		var memberID int64
-		err := tx.QueryRow(ctx, `SELECT o.id,o.expires_at,m.id FROM offers o JOIN memberships m ON m.id=o.membership_id WHERE m.invitation_id=$1 AND m.user_id=$2 AND o.status='active'`, id, userID).Scan(&offerID, &expires, &memberID)
+		err = tx.QueryRow(ctx, `SELECT o.id,o.expires_at,m.id FROM offers o JOIN memberships m ON m.id=o.membership_id WHERE m.invitation_id=$1 AND m.user_id=$2 AND o.status='active'`, id, userID).Scan(&offerID, &expires, &memberID)
 		if errors.Is(err, pgx.ErrNoRows) {
+			var lastStatus string
+			_ = tx.QueryRow(ctx, `SELECT o.status FROM offers o JOIN memberships m ON m.id=o.membership_id WHERE m.invitation_id=$1 AND m.user_id=$2 ORDER BY o.created_at DESC LIMIT 1`, id, userID).Scan(&lastStatus)
+			if lastStatus == "expired" {
+				return Conflict("offer_expired", "This offer has expired.")
+			}
 			return Conflict("no_offer", "There is no active offer to respond to.")
 		}
 		if err != nil {
@@ -214,7 +230,7 @@ func (s *Store) OfferAction(ctx context.Context, userID, id string, accept bool)
 			return Conflict("offer_expired", "This offer has expired.")
 		}
 		next := "declined"
-		memberStatus := "left"
+		memberStatus = "left"
 		kind := "offer_declined"
 		message := "You declined the offer."
 		if accept {
@@ -275,6 +291,9 @@ func (s *Store) Cancel(ctx context.Context, userID, id string) (Plan, error) {
 			if err = addEvent(ctx, tx, "plan_cancelled", id, u, "A plan you joined was cancelled."); err != nil {
 				return err
 			}
+		}
+		if _, err = tx.Exec(ctx, `UPDATE memberships SET status='left' WHERE invitation_id=$1 AND status='offered'`, id); err != nil {
+			return err
 		}
 		return addEvent(ctx, tx, "plan_cancelled", id, "", "")
 	})
