@@ -6,10 +6,12 @@ export type Plan = {
   reserved: number; waiting: number; available: number; status: 'active' | 'cancelled'
   myStatus: 'host' | 'confirmed' | 'waitlisted' | 'offered' | 'left' | ''
   offerExpiresAt?: string
+  recommendationReason?: string
 }
 export type Notification = { id: string; message: string; invitationId: string; read: boolean; createdAt: string }
 export type FeedPage = { plans: Plan[]; nextCursor?: string }
 export type AuthConfig = { localAuth: boolean; oidc: boolean }
+export type DiscoveryPreferences = { categories: string[]; area: string; availability: 'any' | 'weekday_evenings' | 'weekends'; timezone: string }
 
 export class ApiError extends Error {
   constructor(public code: string, message: string, public status: number) { super(message) }

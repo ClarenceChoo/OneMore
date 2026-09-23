@@ -19,12 +19,13 @@ The first audience is a single community whose members already make small group 
 7. See hosted, confirmed, waiting, and offered plans in My plans. See persistent in-app notifications.
 8. Receive live refresh signals through server-sent events. On reconnect, the client reloads authoritative state.
 9. Hosts can cancel their plans. Cancellation invalidates active offers and prevents new participation.
+10. Let members compare chronological discovery with an explainable For you view. Save interests, preferred area, and local-time availability. Record visible impressions, clicks, and joins with a feed source for later evaluation.
 
 Direct messaging, payments, media uploads, reputation, recommendation ranking, and public profiles are outside this release.
 
 ## UX requirements
 
-The default screen is the upcoming feed. Each item shows what, when, where, remaining spaces, and one clear next action. Filters stay compact and reversible. The plan detail explains membership status in plain language. Create uses one short form with inline validation. My plans separates hosting, going, waiting, and offers. The interface works at 360 px width, is keyboard operable, and communicates errors without losing form input. Color never carries status alone.
+The default screen is the upcoming feed. Each item shows what, when, where, remaining spaces, and one clear next action. Filters stay compact and reversible. Members can switch between Soonest and For you and edit discovery preferences in the feed. Recommendations explain their strongest matching signal. The plan detail explains membership status in plain language. Create uses one short form with inline validation. My plans separates hosting, going, waiting, and offers. The interface works at 360 px width, is keyboard operable, and communicates errors without losing form input. Color never carries status alone.
 
 ## Rules and state
 
@@ -39,11 +40,12 @@ The default screen is the upcoming feed. Each item shows what, when, where, rema
 
 ## System design
 
-React, TypeScript, and Vite render the client. A Go API owns validation, session authentication, REST endpoints, and SSE. PostgreSQL stores all durable state; pgx transactions enforce capacity. A separate Go worker expires offers, relays transactionally stored outbox events to Redis Streams, and records notifications idempotently. Redis holds short-lived discovery results and cross-process refresh signals; participation continues correctly if Redis is unavailable. Docker Compose runs the API, worker, PostgreSQL, Redis, and frontend locally. The same containers can run behind HTTPS on a Linux host.
+React, TypeScript, and Vite render the client. A Go API owns validation, session authentication, REST endpoints, and SSE. PostgreSQL stores all durable state; pgx transactions enforce capacity. Versioned SQL migrations run under a PostgreSQL advisory lock. A separate Go worker expires offers, relays transactionally stored outbox events to Redis Streams, and records notifications idempotently. Redis holds short-lived discovery results and cross-process refresh signals; participation continues correctly if Redis is unavailable. Docker Compose runs the API, worker, PostgreSQL, Redis, and frontend locally. The same containers can run behind HTTPS on a Linux host.
 
 ## API
 
 - `GET /api/me`, `GET /api/plans`, `GET /api/plans/{id}`, `GET /api/my-plans`
+- `GET /api/recommendations`, `GET /api/preferences`, `POST /api/preferences`, `POST /api/discovery/events`
 - `POST /api/plans`, `POST /api/plans/{id}/join`, `POST /api/plans/{id}/leave`, `POST /api/plans/{id}/cancel`
 - `POST /api/plans/{id}/offer/accept`, `POST /api/plans/{id}/offer/decline`
 - `GET /api/notifications`, `POST /api/notifications/{id}/read`, `GET /api/events`

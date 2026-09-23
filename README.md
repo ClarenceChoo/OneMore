@@ -46,6 +46,9 @@ The browser uses cookie-based sessions. Main endpoints:
 | POST | `/auth/register` | Create a local profile and sign in |
 | POST | `/auth/local/login` | Sign in with a local handle and password |
 | GET | `/api/plans` | Upcoming feed with `category`, `area`, `before`, `open`, and `cursor` filters |
+| GET | `/api/recommendations` | Explainable, preference-based discovery |
+| GET/POST | `/api/preferences` | Read or save interests, preferred area, and availability |
+| POST | `/api/discovery/events` | Record visible impressions and clicks |
 | POST | `/api/plans` | Create; accepts `Idempotency-Key` |
 | GET | `/api/plans/{id}` | Current detail and your status |
 | POST | `/api/plans/{id}/join` | Claim space or join waitlist |
@@ -82,6 +85,12 @@ The tool reports request count, errors, throughput, and p50/p95 latency. Record 
 The [local baseline](docs/benchmark.md) records one measured run and its limits.
 The [mixed workload study](docs/benchmark.md#mixed-workload-study) compares feed query designs using 3,000 plans, 12,000 memberships, filtering, joins, and leaves. Its raw results are checked in separately.
 
+## Discovery
+
+Discover offers **Soonest** and **For you** views. For you scores upcoming plans using selected interests, preferred area, local-time availability, prior clicks and joins, and open spaces. Each suggestion shows a plain-language reason. It is a rule-based ranking, not a learned model. The client records visible impressions and clicks with the feed source; joins are recorded in the participation transaction and attributed to a recent click when available. [Scoring and evaluation notes](docs/discovery.md) describe how to compare the two views without claiming improvements before there is enough activity.
+
+Database changes are applied from the versioned SQL files in [migrations](internal/core/migrations) at API startup. Two API instances serialize migrations with a PostgreSQL advisory lock. The initial migration can run against an existing OneMore database because its original tables use `CREATE TABLE IF NOT EXISTS`; the discovery migration adds its own tables without removing data.
+
 ## Process recovery check
 
 The integration suite also starts two API processes and two worker processes against the isolated test database. It races claims across the APIs, simulates a Redis connection failure, and uses a test-only worker binary that exits immediately after Redis publish but before the PostgreSQL commit. After the normal workers restart, the test verifies capacity, event recovery, and one notification despite duplicate stream entries. Run it with the same `TEST_DATABASE_URL` and `TEST_REDIS_URL` used above:
@@ -104,4 +113,4 @@ The production overlay disables local password sign-in, uses secure cookies, and
 
 ## Current limits
 
-This release does not include direct messages, payments, uploaded media, ranking, or public profiles. The feed is limited to the next 30 days and uses a five-second cache. Database schema changes after the first release need versioned migrations before deployment to an existing database.
+This release does not include direct messages, payments, uploaded media, learned ranking, or public profiles. The chronological feed is limited to the next 30 days and uses a five-second cache. For you ranks at most 200 candidate plans and shows the best 24; the candidate limit should be revisited as the community grows.
