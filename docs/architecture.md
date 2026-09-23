@@ -62,14 +62,14 @@ sequenceDiagram
   participant Worker as Go worker
   participant Redis as Redis
   Member->>API: POST /api/plans/{id}/join
-  API->>DB: Begin; lock invitation row
+  API->>DB: Begin transaction and lock invitation row
   DB-->>API: Current capacity and queue
-  API->>DB: Confirm or waitlist; append outbox event; commit
+  API->>DB: Confirm or waitlist, append outbox event, and commit
   API-->>Member: Updated plan and membership status
   Worker->>DB: Claim pending outbox event
   Worker->>DB: Insert deduplicated notification in transaction
   Worker->>Redis: Publish delivery event to stream
-  Worker->>DB: Mark delivered; commit
+  Worker->>DB: Mark delivered and commit
   Worker->>Redis: Publish refresh signal
   Redis-->>API: Refresh signal
   API-->>Member: SSE refresh event
